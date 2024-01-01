@@ -1,25 +1,94 @@
-import logo from './logo.svg';
 import './App.css';
+import {Divider, Input, List, Space, message} from 'antd';
+import {useState} from "react";
+
+const { Search } = Input;
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <RemoteSearch />
   );
 }
 
 export default App;
+
+function RemoteSearch() {
+  const [messageApi, contextHolder] = message.useMessage();
+  let [historyData, setHistoryData] = useState([]);
+
+  const error = (value) => {
+    messageApi.error(value);
+  };
+
+  const onSearch = (value, _e, info) => {
+    fetch('/server/onSearch', {
+      method: "POST",
+      body: JSON.stringify({
+        text: value,
+      })
+    }).then((res) => res.json()).
+        then((res) => {
+          if (res.ret_code !== 0) {
+            error(`fetch failed: code=${res.ret_code}, info=${res.err_info}`);
+            return;
+          }
+          const date = new Date();
+          let newHistoryData = historyData.slice();
+          newHistoryData.unshift(`${formatDateTime(date, "HH:mm:ss")} ${res.err_info}`);
+          console.log(newHistoryData);
+          setHistoryData(newHistoryData);
+    }).catch((e) => {
+      error(`fetch failed: ${e}`);
+    })
+  }
+
+  return (<div style={{textAlign: "center"}}>
+    {contextHolder}
+    <Divider orientation="left">Remote Search</Divider>
+    <Space>
+      <Search
+        placeholder="remote type string"
+        allowClear
+        enterButton
+        onSearch={onSearch}
+      />
+    </Space>
+    <Divider orientation="left">History</Divider>
+    <List
+        bordered
+        dataSource={historyData}
+        renderItem={(item) => (
+            <List.Item>
+                {item}
+            </List.Item>
+        )}
+    />
+  </div>);
+}
+
+function formatDateTime(date, format) {
+  const o = {
+    'M+': date.getMonth() + 1, // 月份
+    'd+': date.getDate(), // 日
+    'h+': date.getHours() % 12 === 0 ? 12 : date.getHours() % 12, // 小时
+    'H+': date.getHours(), // 小时
+    'm+': date.getMinutes(), // 分
+    's+': date.getSeconds(), // 秒
+    'q+': Math.floor((date.getMonth() + 3) / 3), // 季度
+    S: date.getMilliseconds(), // 毫秒
+    a: date.getHours() < 12 ? '上午' : '下午', // 上午/下午
+    A: date.getHours() < 12 ? 'AM' : 'PM', // AM/PM
+  };
+  if (/(y+)/.test(format)) {
+    format = format.replace(RegExp.$1, (date.getFullYear() + '').substr(4 - RegExp.$1.length));
+  }
+  for (let k in o) {
+    if (new RegExp('(' + k + ')').test(format)) {
+      format = format.replace(
+          RegExp.$1,
+          RegExp.$1.length === 1 ? o[k] : ('00' + o[k]).substr(('' + o[k]).length)
+      );
+    }
+  }
+  return format;
+}
